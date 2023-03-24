@@ -4,4 +4,13 @@ version = 3
 
 [[package]]
 name = "cargit"
-version = "0.2.3"
+version = "0.2.4"
+dependencies = [
+ "gmec",
+]
+
+[[package]]
+name = "gmec"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7187295842402d0855c3e7ef9161e6535fcde48d3d1b7ca0b3cca6922a2bc3a"

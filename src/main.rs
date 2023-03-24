@@ -1,9 +1,6 @@
-use std::{fs, env, io::{Read, Write, stdout}, process::Command};
+use std::{fs, env, io::{Write, stdout}, process::Command};
 
-use patterns::{PatternMatcher};
-
-mod patterns;
-
+use gmec::pattern::{PatternMatcher};
 // fn main() {}
 
 const CARGO_MANIFEST: &str = "Cargo.toml";
