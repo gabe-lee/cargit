@@ -93,8 +93,8 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     let cargo_toml_result = File::options()
         .read(true)
         .write(true)
-        .truncate(false)
-        .append(false)
+        // .truncate(false)
+        // .append(false)
         .open(CARGO_MANIFEST);
     if cargo_toml_result.is_err() {
         return Err(format!("No Cargo.toml file found! This command must be run from a valid Rust crate root directory\nOriginal error: {}", cargo_toml_result.unwrap_err()));
