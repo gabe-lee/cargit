@@ -1,4 +1,4 @@
-use std::{fs::File, env, io::{Read, Write, stdout}, process::Command};
+use std::{fs, env, io::{Read, Write, stdout}, process::Command};
 
 use patterns::{PatternMatcher};
 
@@ -90,20 +90,14 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     if args.len() >= 5 && next_arg_is_msg {
         update_message = args[4].clone();
     }
-    let cargo_toml_result = File::options()
-        .read(true)
-        .write(true)
-        // .truncate(false)
-        // .append(false)
-        .open(CARGO_MANIFEST);
-    if cargo_toml_result.is_err() {
-        return Err(format!("No Cargo.toml file found! This command must be run from a valid Rust crate root directory\nOriginal error: {}", cargo_toml_result.unwrap_err()));
+    if let Err(err) = fs::metadata(CARGO_MANIFEST) {
+        return Err(format!("No Cargo.toml file found! This command must be run from a valid Rust crate root directory\nOriginal error: {}", err));
     }
-    let mut cargo_toml = cargo_toml_result.unwrap();
-    let mut cargo_toml_str: String = String::new();
-    let cargo_toml_read_result = cargo_toml.read_to_string(&mut cargo_toml_str);
-    if cargo_toml_read_result.is_err() {
-        return Err(format!("Cargo.toml could not be parsed to String\nOriginal error: {}", cargo_toml_read_result.unwrap_err()))
+    let cargo_toml_str: String = match fs::read_to_string(CARGO_MANIFEST) {
+        Ok(content) => content,
+        Err(err) => {
+            return Err(format!("Cargo.toml could not be parsed to String\nOriginal error: {}", err))
+        }
     };
     let (cargo_toml_before_version, cargo_toml_version, cargo_toml_after_version) = split_version_from_cargo_toml(&cargo_toml_str)?;
     let (major_ver, minor_ver, patch_ver) = split_parts_from_version(&cargo_toml_version)?;
@@ -141,7 +135,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     }
     let new_version = format!("{}.{}.{}", major_num, minor_num, patch_num);
     let new_cargo_toml_str = format!("{}{}{}", cargo_toml_before_version, new_version, cargo_toml_after_version);
-    if let Err(err) = cargo_toml.write(new_cargo_toml_str.as_bytes()) {
+    if let Err(err) = fs::write(CARGO_MANIFEST, new_cargo_toml_str) {
         return Err(format!("Failed to write to Cargo.toml:\n{}", err));
     };
     match Command::new("git").arg("add").arg(".").output() {
