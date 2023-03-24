@@ -16,6 +16,7 @@ Usage:
   cargo gitkit help                                     # Display this help message
   cargo gitkit save [major|minor|patch] [-m <message>]  # this command performs the following actions, in order:
       (Increment relevent part of the Version in Cargo.toml, and set any lesser version parts to 0)
+      cargo generate-lockfile
       git add .
       git commit -m \"<message>\"
       git push
@@ -134,6 +135,14 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     let new_cargo_toml_str = format!("{}{}{}", cargo_toml_before_version, new_version, cargo_toml_after_version);
     if let Err(err) = fs::write(CARGO_MANIFEST, new_cargo_toml_str) {
         return Err(format!("Failed to write to Cargo.toml:\n{}", err));
+    };
+    match Command::new("cargo").arg("generate-lockfile").output() {
+        Ok(out) => {
+            stdout().write_all(&out.stdout).unwrap();
+        },
+        Err(err) => {
+            return Err(format!("ERROR RUNNING COMMAND: cargo generate-lockfile\n{}", err));
+        }
     };
     match Command::new("git").arg("add").arg(".").output() {
         Ok(out) => {
