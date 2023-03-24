@@ -1,8 +1,8 @@
-use std::{fs::File, env, io::{Read, Write, Stdout, stdout}, slice::SliceIndex, fmt::format, process::Command};
+use std::{fs::File, env, io::{Read, Write, stdout}, process::Command};
 
-use Patterns::{PatternMatcher, PatternMatch};
+use patterns::{PatternMatcher};
 
-mod Patterns;
+mod patterns;
 
 // fn main() {}
 
@@ -94,6 +94,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
         .read(true)
         .write(true)
         .truncate(false)
+        .append(false)
         .open(CARGO_MANIFEST);
     if cargo_toml_result.is_err() {
         return Err(format!("No Cargo.toml file found! This command must be run from a valid Rust crate root directory\nOriginal error: {}", cargo_toml_result.unwrap_err()));
@@ -140,10 +141,12 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     }
     let new_version = format!("{}.{}.{}", major_num, minor_num, patch_num);
     let new_cargo_toml_str = format!("{}{}{}", cargo_toml_before_version, new_version, cargo_toml_after_version);
-    cargo_toml.write(new_cargo_toml_str.as_bytes());
+    if let Err(err) = cargo_toml.write(new_cargo_toml_str.as_bytes()) {
+        return Err(format!("Failed to write to Cargo.toml:\n{}", err));
+    };
     match Command::new("git").arg("add").arg(".").output() {
         Ok(out) => {
-            stdout().write_all(&out.stdout);
+            stdout().write_all(&out.stdout).unwrap();
         },
         Err(err) => {
             return Err(format!("ERROR RUNNING COMMAND: git add .\n{}", err));
@@ -151,7 +154,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     };
     match Command::new("git").arg("commit").arg("-m").arg(format!("\"{}\"", update_message)).output() {
         Ok(out) => {
-            stdout().write_all(&out.stdout);
+            stdout().write_all(&out.stdout).unwrap();
         },
         Err(err) => {
             return Err(format!("ERROR RUNNING COMMAND: git commit -m \"{}\"\n{}", update_message, err));
@@ -159,7 +162,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     };
     match Command::new("git").arg("push").output() {
         Ok(out) => {
-            stdout().write_all(&out.stdout);
+            stdout().write_all(&out.stdout).unwrap();
         },
         Err(err) => {
             return Err(format!("ERROR RUNNING COMMAND: git push -m\n{}", err));
@@ -167,7 +170,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     };
     match Command::new("git").arg("tag").arg(new_version.as_str()).output() {
         Ok(out) => {
-            stdout().write_all(&out.stdout);
+            stdout().write_all(&out.stdout).unwrap();
         },
         Err(err) => {
             return Err(format!("ERROR RUNNING COMMAND: git tag {}\n{}", new_version, err));
@@ -175,7 +178,7 @@ fn save_process(args: Vec<String>) -> Result<String, String> {
     };
     match Command::new("git").arg("push").arg("--tags").output() {
         Ok(out) => {
-            stdout().write_all(&out.stdout);
+            stdout().write_all(&out.stdout).unwrap();
         },
         Err(err) => {
             return Err(format!("ERROR RUNNING COMMAND: git push --tags\n{}", err));
