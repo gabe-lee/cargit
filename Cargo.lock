@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "cargo-gitkit"
-version = "0.2.2"
+name = "cargit"
+version = "0.2.3"
