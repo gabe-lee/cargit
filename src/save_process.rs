@@ -48,7 +48,7 @@ where I: Iterator<Item = String> {
                         // if msg.len() < 2 || !msg.starts_with("\"") || !msg.ends_with("\"") {
                         //     return Err(ErrorChain::new("the '-m' option must be followed by a quoted message"))
                         // }
-                        update_message = msg[1..msg.len()-1].to_string();
+                        update_message = msg;
                         update_message_set = true;
                     }
                     None => return Err(ErrorChain::new("the '-m' option must be followed by a quoted message"))

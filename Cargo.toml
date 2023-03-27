@@ -1,6 +1,6 @@
 [package]
 name = "cargit"
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 authors = ["Gabriel Lee Anderson <gla.ander@gmail.com>"]
 description = "Small utility for automating groups of git and cargo actions"
