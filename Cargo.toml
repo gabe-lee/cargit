@@ -1,6 +1,6 @@
 [package]
 name = "cargit"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2021"
 authors = ["Gabriel Lee Anderson <gla.ander@gmail.com>"]
 description = "Small utility for automating groups of git and cargo actions"
@@ -10,5 +10,5 @@ license = "BSD-3-Clause"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-"gmec" = "0.0.1"
-"anyhow" = "1.0.70"
+"gmec" = "0.0.3"
+# "anyhow" = "1.0.70"
