@@ -87,11 +87,11 @@ pub(crate) fn get_current_commit() -> Result<String, ErrorChain> {
 }
 
 pub(crate) fn get_branch_name() -> Result<String, ErrorChain> {
+    if is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
+        return last_attatched_head_branch();
+    }
     let command = "git rev-parse --abbrev-ref --symbolic-full-name HEAD";
     let branch_name = get_cli_output_as_string("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
-    if branch_name == "HEAD" {
-
-    }
     return Ok(branch_name);
 }
 
@@ -107,8 +107,11 @@ pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
 }
 
 pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
+    if !is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
+        return get_branch_name()
+    }
     let command = "git log --walk-reflogs --grep-reflog \"checkout\" -1 --oneline";
-    let detatch_log = get_cli_output_as_string("git", ["log", "--walk-reflogs", "--grep-reflog", "\"checkout\"", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
+    let detatch_log = get_cli_output_as_string("git", ["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
     let original_branch_start = detatch_log.find_first(&"checkout: moving from ").on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch_end = detatch_log.find_first_from(&" to ", original_branch_start.end()).on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch = detatch_log[original_branch_start.end()..original_branch_end.start()].to_owned();
@@ -120,7 +123,7 @@ mod tests {
     use super::*;
     use core::fmt::Debug;
 
-    
+    // dummy change
     fn print_or_panic<D: Debug>(result: Result<D, ErrorChain>) {
         match result {
             Ok(output) => println!("{:#?}", output),
