@@ -98,6 +98,11 @@ pub(crate) fn get_origin_name() -> Result<String, ErrorChain> {
     return Ok(remote_name.trim_end().to_owned());
 }
 
+pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
+    let branch_name = get_branch_name().on_error("could not determine if repo in detatched head mode")?;
+    return Ok(branch_name == String::from("HEAD")); // branches CANNOT be named HEAD, HEAD is only returned from get_branch_mode() when in detatched state
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +143,12 @@ mod tests {
     #[ignore]
     fn test_get_origin_name() {
         print_or_panic(get_origin_name());
+    }
+
+    #[test]
+    #[ignore]
+    fn test_is_detatched_mode() {
+        print_or_panic(is_detatched_mode());
     }
 
     #[test]
