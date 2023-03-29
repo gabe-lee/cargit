@@ -3,7 +3,7 @@ use std::{fs, process::Command};
 use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;
 
-use crate::VersionPart;
+use crate::utils::VersionPart;
 use crate::utils::CARGO_MANIFEST;
 use crate::utils::split_parts_from_version;
 use crate::utils::split_version_from_cargo_toml;
