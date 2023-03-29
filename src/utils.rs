@@ -88,8 +88,11 @@ pub(crate) fn get_current_commit() -> Result<String, ErrorChain> {
 
 pub(crate) fn get_branch_name() -> Result<String, ErrorChain> {
     let command = "git rev-parse --abbrev-ref --symbolic-full-name HEAD";
-    let branch_name = get_cli_output_as_string("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?;
-    return Ok(branch_name.trim_end().to_owned());
+    let branch_name = get_cli_output_as_string("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
+    if branch_name == "HEAD" {
+
+    }
+    return Ok(branch_name);
 }
 
 pub(crate) fn get_origin_name() -> Result<String, ErrorChain> {
@@ -101,6 +104,15 @@ pub(crate) fn get_origin_name() -> Result<String, ErrorChain> {
 pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
     let branch_name = get_branch_name().on_error("could not determine if repo in detatched head mode")?;
     return Ok(branch_name == String::from("HEAD")); // branches CANNOT be named HEAD, HEAD is only returned from get_branch_mode() when in detatched state
+}
+
+pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
+    let command = "git log --walk-reflogs --grep-reflog \"checkout\" -1 --oneline";
+    let detatch_log = get_cli_output_as_string("git", ["log", "--walk-reflogs", "--grep-reflog", "\"checkout\"", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
+    let original_branch_start = detatch_log.find_first(&"checkout: moving from ").on_error("could not locate where HEAD was detatched from branch")?;
+    let original_branch_end = detatch_log.find_first_from(&" to ", original_branch_start.end()).on_error("could not locate where HEAD was detatched from branch")?;
+    let original_branch = detatch_log[original_branch_start.end()..original_branch_end.start()].to_owned();
+    return Ok(original_branch);
 }
 
 #[cfg(test)]
@@ -150,6 +162,12 @@ mod tests {
     #[ignore]
     fn test_is_detatched_mode() {
         print_or_panic(is_detatched_mode());
+    }
+
+    #[test]
+    #[ignore]
+    fn test_last_attatched_head_branch() {
+        print_or_panic(last_attatched_head_branch());
     }
 
     #[test]
