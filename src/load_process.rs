@@ -3,6 +3,9 @@ use std::{fs, process::Command};
 use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;
 
+use crate::utils::get_current_commit;
+use crate::utils::get_reverse_chron_iterator_over_commits;
+
 
 const LOAD_LAST: &str = "last";
 const LOAD_NEXT: &str = "next";
@@ -60,8 +63,19 @@ where I: Iterator<Item = String> {
             }
         }
     }
+    let commiterator = get_reverse_chron_iterator_over_commits().on_error("could not obtain an iterator over all commits in branch")?;
     match load_mode {
-        LoadMode::Last => todo!(),
+        LoadMode::Last => {
+            let current_commit = get_current_commit().on_error("could not get current commit hash")?;
+            let mut next_commit_is_before_current = false;
+            for (commit, _) in commiterator {
+                if commit == current_commit {
+                    next_commit_is_before_current = true;
+                } else if next_commit_is_before_current {
+                    
+                }
+            }
+        },
         LoadMode::Next => todo!(),
         LoadMode::Latest => todo!(),
         LoadMode::Commit(commit) => todo!(),
