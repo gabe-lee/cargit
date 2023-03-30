@@ -4,7 +4,8 @@ use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;
 
 use crate::utils::get_current_commit;
-use crate::utils::get_reverse_chron_iterator_over_commits;
+use crate::utils::get_reverse_chron_iterator_over_commits_in_branch;
+use crate::utils::get_reverse_chron_iterator_over_commits_in_current_branch;
 
 
 const LOAD_LAST: &str = "last";
@@ -63,7 +64,8 @@ where I: Iterator<Item = String> {
             }
         }
     }
-    let commiterator = get_reverse_chron_iterator_over_commits().on_error("could not obtain an iterator over all commits in branch")?;
+    // let branch = 
+    let commiterator = get_reverse_chron_iterator_over_commits_in_current_branch().on_error("could not obtain an iterator over all commits in branch")?;
     match load_mode {
         LoadMode::Last => {
             let current_commit = get_current_commit().on_error("could not get current commit hash")?;

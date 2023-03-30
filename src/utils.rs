@@ -11,12 +11,12 @@ pub(crate) enum VersionPart {
     Patch
 }
 
-pub(crate) struct CommitTagIterator {
+pub(crate) struct Commiterator {
     index: usize,
     commits_and_tags: Vec<(String, Vec<String>)>
 }
 
-impl Iterator for CommitTagIterator {
+impl Iterator for Commiterator {
     type Item = (String, Vec<String>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -55,7 +55,12 @@ pub(crate) fn split_parts_from_version<'a>(version_string: &'a str) -> Result<(&
     return Ok((major, minor, patch));
 }
 
-pub(crate) fn get_reverse_chron_iterator_over_commits() -> Result<CommitTagIterator, ErrorChain> {
+pub(crate) fn get_reverse_chron_iterator_over_commits_in_current_branch() -> Result<Commiterator, ErrorChain> {
+    let branch = get_branch_name().on_error("could not get current branch name")?;
+    return get_reverse_chron_iterator_over_commits_in_branch(branch.as_str());
+}
+
+pub(crate) fn get_reverse_chron_iterator_over_commits_in_branch(branch: &str) -> Result<Commiterator, ErrorChain> {
     let all_commits = get_all_commits_in_current_branch().on_error("could not retrieve commits list")?;
     let mut all_commits_tags: Vec<(String, Vec<String>)> = Vec::new();
     for commit in all_commits {
@@ -63,10 +68,17 @@ pub(crate) fn get_reverse_chron_iterator_over_commits() -> Result<CommitTagItera
         all_commits_tags.push((commit, tags_on_commit));
 
     }
-    return Ok(CommitTagIterator{ index: 0, commits_and_tags: all_commits_tags })
+    return Ok(Commiterator{ index: 0, commits_and_tags: all_commits_tags })
 }
 
 pub(crate) fn get_all_commits_in_current_branch() -> Result<Vec<String>, ErrorChain> {
+    let branch = get_branch_name().on_error("could not get current branch name")?;
+    return get_all_commits_in_branch(branch.as_str());
+}
+
+pub(crate) fn get_all_commits_in_branch(branch: &str) -> Result<Vec<String>, ErrorChain> {
+    let command = "git log <branch-name> --pretty=format:'%H'";
+    let commits_in_branch = get_cli_output_as_string("git", ["log", branch, "--pretty=format:'%H'"]).on_error(format!("error using command '{}'", command))?;
     let git_log_output = Command::new("git").arg("log").arg("--pretty=format:'%H'").output().on_error("error running command 'git log --pretty=format:'%H''")?;
     let git_log_output_string = String::from_utf8(git_log_output.stdout).on_error("could not parse output from 'git log --pretty=format:'%H'' into utf-8 String")?;
     let git_log_commits: Vec<String> = git_log_output_string.split_whitespace().map(|s| s.trim_matches('\'').to_owned()).collect();
@@ -87,15 +99,19 @@ pub(crate) fn get_current_commit() -> Result<String, ErrorChain> {
 }
 
 pub(crate) fn get_branch_name() -> Result<String, ErrorChain> {
-    if is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
-        return last_attatched_head_branch();
-    }
+    // if is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
+    //     return last_attatched_head_branch_unchecked();
+    // }
+    return get_branch_name_unchecked();
+}
+
+fn get_branch_name_unchecked() -> Result<String, ErrorChain> {
     let command = "git rev-parse --abbrev-ref --symbolic-full-name HEAD";
     let branch_name = get_cli_output_as_string("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
     return Ok(branch_name);
 }
 
-pub(crate) fn get_origin_name() -> Result<String, ErrorChain> {
+pub(crate) fn get_remote_name() -> Result<String, ErrorChain> {
     let command = "git remote";
     let remote_name = get_cli_output_as_string("git", ["remote"]).on_error(format!("error using command '{}'", command))?;
     return Ok(remote_name.trim_end().to_owned());
@@ -107,15 +123,26 @@ pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
 }
 
 pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
-    if !is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
-        return get_branch_name()
-    }
+    // if !is_detatched_mode().on_error("could not verify if HEAD is detatched")? {
+    //     return get_branch_name_unchecked()
+    // }
+    return last_attatched_head_branch_unchecked();
+}
+
+fn last_attatched_head_branch_unchecked() -> Result<String, ErrorChain> {
     let command = "git log --walk-reflogs --grep-reflog \"checkout\" -1 --oneline";
     let detatch_log = get_cli_output_as_string("git", ["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
     let original_branch_start = detatch_log.find_first(&"checkout: moving from ").on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch_end = detatch_log.find_first_from(&" to ", original_branch_start.end()).on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch = detatch_log[original_branch_start.end()..original_branch_end.start()].to_owned();
     return Ok(original_branch);
+}
+
+pub(crate) fn get_all_local_branches_in_repo() -> Result<Vec<String>, ErrorChain> {
+    let command = "git branch --list --format=\"%(refname:short)\"";
+    let branches_string = get_cli_output_as_string("git", ["branch", "--list", "--format=\"%(refname:short)\""]).on_error(format!("error using command '{}'", command))?;
+    let branches: Vec<String> = branches_string.split_whitespace().map(|s| s.trim_matches('"').to_owned()).collect();
+    return Ok(branches);
 }
 
 #[cfg(test)]
@@ -127,6 +154,13 @@ mod tests {
     fn print_or_panic<D: Debug>(result: Result<D, ErrorChain>) {
         match result {
             Ok(output) => println!("{:#?}", output),
+            Err(error) => panic!("{}", error)
+        }
+    }
+
+    fn unwrap_or_panic<D: Debug>(result: Result<D, ErrorChain>) -> D {
+        match result {
+            Ok(output) => return output,
             Err(error) => panic!("{}", error)
         }
     }
@@ -157,8 +191,8 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_get_origin_name() {
-        print_or_panic(get_origin_name());
+    fn test_get_remote_name() {
+        print_or_panic(get_remote_name());
     }
 
     #[test]
@@ -175,8 +209,25 @@ mod tests {
 
     #[test]
     #[ignore]
+    fn test_get_all_local_branches_in_repo() {
+        print_or_panic(get_all_local_branches_in_repo());
+    }
+
+    #[test]
+    #[ignore]
+    fn test_get_detatched_or_attatched_branch() {
+        let branch_result = if unwrap_or_panic(is_detatched_mode()) {
+            unwrap_or_panic(last_attatched_head_branch())
+        } else {
+            unwrap_or_panic(get_branch_name())
+        };
+        println!("{}", branch_result);
+    }
+
+    #[test]
+    #[ignore]
     fn test_iterator_over_commits_and_tags() {
-        let commiterator_result = get_reverse_chron_iterator_over_commits();
+        let commiterator_result = get_reverse_chron_iterator_over_commits_in_current_branch();
         match commiterator_result {
             Ok(commiterator) => {
                 let mut output = String::new();
