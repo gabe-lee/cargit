@@ -1,4 +1,4 @@
-use std::{process::Command, ffi::OsStr};
+use std::{process::{Command, Output}, ffi::OsStr, io};
 
 use gmec::{patterns::PatternMatcher, types::error_chain::{ErrorChain, ErrorPropogation}};
 
@@ -29,10 +29,17 @@ impl Iterator for Commiterator {
     }
 }
 
+pub(crate) fn get_cli_output<S, IIS>(program: S, args: IIS) -> Result<Output, ErrorChain>
+where S: AsRef<OsStr> + AsRef<str>,
+IIS: IntoIterator<Item = S>  {
+    let out_result = Command::new(program).args(args).output().on_error("could not execute command")?;
+    return Ok(out_result);
+}
+
 pub(crate) fn get_cli_output_as_string<S, IIS>(program: S, args: IIS) -> Result<String, ErrorChain>
 where S: AsRef<OsStr> + AsRef<str>,
 IIS: IntoIterator<Item = S> {
-    let cli_output = Command::new(program).args(args).output().on_error("could not execute command")?;
+    let cli_output = get_cli_output(program, args).on_error("could not execute command")?;
     let cli_output_string = String::from_utf8(cli_output.stdout).on_error("could not parse to string")?.to_owned();
     return Ok(cli_output_string);
 }
@@ -129,6 +136,12 @@ pub(crate) fn get_all_local_branches_in_repo() -> Result<Vec<String>, ErrorChain
     let branches_string = get_cli_output_as_string("git", ["branch", "--list", "--format=\"%(refname:short)\""]).on_error(format!("error using command '{}'", command))?;
     let branches: Vec<String> = branches_string.split_whitespace().map(|s| s.trim_matches('"').to_owned()).collect();
     return Ok(branches);
+}
+
+pub(crate) fn git_checkout(identifier: &str) -> Result<(), ErrorChain> {
+    let command = "git checkout <identifier>";
+    get_cli_output("git", ["checkout", identifier]).on_error(format!("error using command '{}'", command))?;
+    return Ok(())
 }
 
 #[cfg(test)]
