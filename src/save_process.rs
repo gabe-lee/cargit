@@ -17,7 +17,33 @@ const DEFAULT_MSG: &str = "(undocumented change)";
 pub(crate) fn save_process<I>(mut args_iter: I) -> Result<String, ErrorChain>
 where I: Iterator<Item = String> {
     if is_detatched_mode().on_error("could not verify if in detatched head state")? {
-        return Err(ErrorChain::new("cannot save while in a detatched head state (while checked out to a commit that isnt the latest in the branch)\nif you want to create a branch starting from this commit instead, use 'cargit branch <new-branch-name>'"))
+        let original_branch = last_attatched_head_branch()?;
+        let mut buffer = String::new();
+        print!(r#"
+Cannot save while in a detatched head state
+(while checked out to a commit that isnt the latest in the branch)
+Would you like to create a new branch from these changes now? (y/n): "#);
+        read_stdin_line(&mut buffer)?;
+        if !cli_affirmative(buffer) {
+            buffer = String::new();
+            print!(r#"
+Would you like to discard these changes instead?
+(WARNING: this may be irreversible) (y/n): "#);
+            read_stdin_line(&mut buffer)?;
+            if !cli_affirmative(buffer) {
+                return Err(ErrorChain::new("Save aborted due to detatched head"))
+            }
+            git_checkout(&original_branch)?;
+            return Ok(String::from("Save aborted due to detatched head, returned to original branch"));
+        } else {
+            buffer = String::new();
+            print!(r#"
+Name for the new branch: "#);
+            read_stdin_line(&mut buffer)?;
+            let branch_name = buffer.trim().to_owned();
+            git_branch(&branch_name)?;
+            git_checkout(&branch_name)?;
+        }
     }
     let mut update_part: VersionPart = VersionPart::Patch;
     let mut update_part_set = false;

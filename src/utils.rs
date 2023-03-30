@@ -1,4 +1,4 @@
-use std::{process::{Command, Output, ExitStatus}, ffi::OsStr, io};
+use std::{process::{Command, Output, ExitStatus}, ffi::OsStr, io::{self, Write}};
 
 use gmec::{patterns::PatternMatcher, types::error_chain::{ErrorChain, ErrorPropogation}};
 
@@ -9,6 +9,13 @@ pub(crate) enum VersionPart {
     Major,
     Minor,
     Patch
+}
+
+pub(crate) fn cli_affirmative(string: String) -> bool {
+    match string.to_lowercase().trim() {
+        "y" | "ye" | "yes" => true,
+        _ => false
+    }
 }
 
 pub(crate) struct Commiterator {
@@ -152,6 +159,17 @@ pub(crate) fn git_checkout(identifier: &str) -> Result<(), ErrorChain> {
     let command = "git checkout <identifier>";
     get_cli_output("git", ["checkout", identifier]).on_error(format!("error using command '{}'", command))?;
     return Ok(())
+}
+
+pub(crate) fn git_branch(branch_name: &str) -> Result<(), ErrorChain> {
+    let command = "git branch <branch-name>";
+    get_cli_output("git", ["branch", branch_name]).on_error(format!("error using command '{}'", command))?;
+    Ok(())
+}
+
+pub(crate) fn read_stdin_line(output_string: &mut String) -> Result<usize, ErrorChain> {
+    io::stdout().flush().on_error("error flushing stdout")?;
+    io::stdin().read_line(output_string).on_error("error reading from stdin")
 }
 
 #[cfg(test)]
