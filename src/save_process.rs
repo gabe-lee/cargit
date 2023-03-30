@@ -3,10 +3,7 @@ use std::{fs, process::Command};
 use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;
 
-use crate::utils::VersionPart;
-use crate::utils::CARGO_MANIFEST;
-use crate::utils::split_parts_from_version;
-use crate::utils::split_version_from_cargo_toml;
+use crate::utils::*;
 
 const SAVE_MAJOR :&str = "major";
 const SAVE_MINOR :&str = "minor";
@@ -19,6 +16,9 @@ const DEFAULT_MSG: &str = "(undocumented change)";
 
 pub(crate) fn save_process<I>(mut args_iter: I) -> Result<String, ErrorChain>
 where I: Iterator<Item = String> {
+    if is_detatched_mode().on_error("could not verify if in detatched head state")? {
+        return Err(ErrorChain::new("cannot save while in a detatched head state (while checked out to a commit that isnt the latest in the branch)\nif you want to create a branch starting from this commit instead, use 'cargit branch <new-branch-name>'"))
+    }
     let mut update_part: VersionPart = VersionPart::Patch;
     let mut update_part_set = false;
     let mut update_message = DEFAULT_MSG.to_string();
@@ -60,6 +60,7 @@ where I: Iterator<Item = String> {
             _ => return Err(ErrorChain::new(format!("invalid argument passed to save mode: '{}'", next_arg_lower)))
         }
     }
+
     fs::metadata(CARGO_MANIFEST).on_error("No Cargo.toml file found! This command must be run from a valid Rust crate root directory")?;
     let cargo_toml_str: String = fs::read_to_string(CARGO_MANIFEST).on_error("Cargo.toml could not be parsed to String")?;
     let (cargo_toml_before_version, cargo_toml_version, cargo_toml_after_version) = split_version_from_cargo_toml(&cargo_toml_str)?;

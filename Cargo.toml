@@ -1,11 +1,13 @@
 [package]
 name = "cargit"
-version = "0.3.0"
+description = "Small utility for automating groups of git and cargo actions"
+version = "0.3.1"
 edition = "2021"
 authors = ["Gabriel Lee Anderson <gla.ander@gmail.com>"]
-description = "Small utility for automating groups of git and cargo actions"
 repository = "https://github.com/gabe-lee/cargit.git"
 license = "BSD-3-Clause"
+keywords = ["git", "cargo"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 "gmec" = "0.0.3"

@@ -1,4 +1,4 @@
-use std::{process::{Command, Output}, ffi::OsStr, io};
+use std::{process::{Command, Output, ExitStatus}, ffi::OsStr, io};
 
 use gmec::{patterns::PatternMatcher, types::error_chain::{ErrorChain, ErrorPropogation}};
 
@@ -34,6 +34,16 @@ where S: AsRef<OsStr> + AsRef<str>,
 IIS: IntoIterator<Item = S>  {
     let out_result = Command::new(program).args(args).output().on_error("could not execute command")?;
     return Ok(out_result);
+}
+
+pub(crate) fn run_cli<S, IIS>(program: S, args: IIS) -> Result<(), ErrorChain>
+where S: AsRef<OsStr> + AsRef<str>,
+IIS: IntoIterator<Item = S>  {
+    let success = Command::new(program).args(args).status().on_error("could not execute command")?.success();
+    if success {
+        return Ok(())
+    }
+    return Err(ErrorChain::new("command exited with abnormal status"));
 }
 
 pub(crate) fn get_cli_output_as_string<S, IIS>(program: S, args: IIS) -> Result<String, ErrorChain>
@@ -148,7 +158,6 @@ pub(crate) fn git_checkout(identifier: &str) -> Result<(), ErrorChain> {
 mod tests {
     use super::*;
     use core::fmt::Debug;
-
     
     fn print_or_panic<D: Debug>(result: Result<D, ErrorChain>) {
         match result {
