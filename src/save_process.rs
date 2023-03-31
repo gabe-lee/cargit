@@ -37,10 +37,30 @@ where I: Iterator<Item = String> {
     let mut options = process_args(&mut args_iter)?;
     process_cargo_changes(&mut options)?;
     if is_detatched_mode()? {
-        return detatched_save(options);
-    } else {
-        return normal_save(options)
+        handle_detatched_state()?;
     }
+    cargo_generate_lockfile()?;
+    git_stage_all_changes()?;
+    git_commit_with_message(&options.commit_message.unwrap_or(DEFAULT_MSG.to_owned()))?;
+    let mut final_message = String::from("Saved, Committed");
+    if let Some(new_version) = options.new_version {
+        git_create_tag(&new_version.to_string())?;
+        final_message.push_str(", Tagged");
+    }
+    if let Some(remote_name) = get_remote_name()? {
+        let branch_name = get_branch_name()?;
+        git_push(&remote_name, &branch_name)?;
+        final_message.push_str(", Pushed");
+    }
+    if options.publish_after_push {
+        cargo_publish()?;
+        final_message.push_str(", Published");
+    }
+    final_message.push('!');
+    if let Some(new_version) = options.new_version {
+        final_message.push_str(format!(" New version: {}", new_version.to_string()).as_str());
+    }
+    return Ok(final_message)
 }
 
 fn process_args<I>(args_iter: &mut I) -> Result<SaveModeOptions, ErrorChain>
@@ -80,32 +100,7 @@ where I: Iterator<Item = String> {
     return Ok(options);
 }
 
-fn normal_save(options: SaveModeOptions) -> Result<String, ErrorChain> {
-    cargo_generate_lockfile()?;
-    git_stage_all_changes()?;
-    git_commit_with_message(&options.commit_message.unwrap_or(DEFAULT_MSG.to_owned()))?;
-    let mut final_message = String::from("Saved, Committed");
-    if let Some(new_version) = options.new_version {
-        git_create_tag(&new_version.to_string())?;
-        final_message.push_str(", Tagged");
-    }
-    if let Some(remote_name) = get_remote_name()? {
-        let branch_name = get_branch_name()?;
-        git_push(&remote_name, &branch_name)?;
-        final_message.push_str(", Pushed");
-    }
-    if options.publish_after_push {
-        cargo_publish()?;
-        final_message.push_str(", Published");
-    }
-    final_message.push('!');
-    if let Some(new_version) = options.new_version {
-        final_message.push_str(format!(" New version: {}", new_version.to_string()).as_str());
-    }
-    return Ok(final_message)
-}
-
-fn detatched_save(options: SaveModeOptions) -> Result<String, ErrorChain> {
+fn handle_detatched_state() -> Result<(), ErrorChain> {
     let original_branch = last_attatched_head_branch()?;
     let mut buffer = String::new();
     print!(r#"Cannot save while in a detatched head state
@@ -126,51 +121,12 @@ Would you like to create a new branch from these changes now? (y/n): "#);
         buffer = String::new();
         print!(r#"Name for the new branch: "#);
         read_stdin_line(&mut buffer)?;
-        let mut branch_name = buffer.trim().to_owned();
-        buffer = String::new();
-        print!(r#"Would you like to immediately merge with original branch?: "#);
-        read_stdin_line(&mut buffer)?;
-        let immediately_merge = cli_affirmative(buffer);
-        buffer = String::new();
-        print!(r#"Would you like to delete the temporary branch after merge?: "#);
-        read_stdin_line(&mut buffer)?;
-        let delete_after_merge = cli_affirmative(buffer);
+        let branch_name = buffer.trim().to_owned();
         git_branch(&branch_name)?;
         git_checkout(&branch_name)?;
-        cargo_generate_lockfile()?;
-        git_stage_all_changes()?;
-        git_commit_with_message(&options.commit_message.unwrap_or(DEFAULT_MSG.to_owned()))?;
-        let mut final_message = String::from("Saved, Committed");
-        if let Some(new_version) = options.new_version {
-            git_create_tag(&new_version.to_string())?;
-            final_message.push_str(", Tagged");
-        }
-        let original_branch = last_attatched_head_branch()?;
-        if immediately_merge {
-            git_merge(&branch_name, &original_branch)?;
-            final_message.push_str(", Merged");
-        }
-        if delete_after_merge {
-            git_delete_branch(&branch_name)?;
-            final_message.push_str(", Old Branch Deleted");
-        }
-        if let Some(remote_name) = get_remote_name()? {
-            if delete_after_merge {
-                branch_name = original_branch;
-            }
-            git_push(&remote_name, &branch_name)?;
-            final_message.push_str(", Pushed");
-        }
-        if options.publish_after_push {
-            cargo_publish()?;
-            final_message.push_str(", Published");
-        }
-        final_message.push('!');
-        if let Some(new_version) = options.new_version {
-            final_message.push_str(format!(" New version: {}", new_version.to_string()).as_str());
-        }
-        return Ok(final_message) 
+        print!("Created new branch {} and switched to it to it!", branch_name);
     }
+    Ok(())
 }
 
 fn process_cargo_changes(options: &mut SaveModeOptions) -> Result<(), ErrorChain> {
