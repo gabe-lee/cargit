@@ -1,4 +1,4 @@
-use std::{fs, process::Command};
+use std::{fs};
 
 use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;

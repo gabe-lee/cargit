@@ -1,4 +1,4 @@
-use std::{process::{Command, Output, ExitStatus}, ffi::OsStr, io::{self, Write}};
+use std::{process::{Command, Output}, ffi::OsStr, io::{self, Write}};
 
 use gmec::{patterns::PatternMatcher, types::error_chain::{ErrorChain, ErrorPropogation}};
 
@@ -124,36 +124,29 @@ pub(crate) fn get_all_commits_in_current_branch() -> Result<Vec<String>, ErrorCh
 }
 
 pub(crate) fn get_all_commits_in_branch(branch: &str) -> Result<Vec<String>, ErrorChain> {
-    let command = "git log <branch-name> --pretty=format:'%H'";
-    let commits_in_branch = get_cli_output_as_string("git", &["log", branch, "--pretty=format:'%H'"]).on_error(format!("error using command '{}'", command))?;
-    let git_log_output = Command::new("git").arg("log").arg("--pretty=format:'%H'").output().on_error("error running command 'git log --pretty=format:'%H''")?;
-    let git_log_output_string = String::from_utf8(git_log_output.stdout).on_error("could not parse output from 'git log --pretty=format:'%H'' into utf-8 String")?;
-    let git_log_commits: Vec<String> = git_log_output_string.split_whitespace().map(|s| s.trim_matches('\'').to_owned()).collect();
-    return Ok(git_log_commits);
+    let commits_in_branch = get_cli_output_as_string("git", &["log", branch, "--pretty=format:'%H'"])?;
+    let commits_in_branch_list: Vec<String> = commits_in_branch.split_whitespace().map(|s| s.trim_matches('\'').to_owned()).collect();
+    return Ok(commits_in_branch_list);
 }
 
 pub(crate) fn get_tags_on_commit(commit: &String) -> Result<Vec<String>, ErrorChain> {
-    let git_tag_output = Command::new("git").arg("tag").arg("--points-at").arg(commit.as_str()).output().on_error(format!("error running command 'git tag --points-at {}'", commit))?;
-    let git_tag_output_string = String::from_utf8(git_tag_output.stdout).on_error(format!("could not parse output from 'git tag --points-at {}'", commit))?;
-    let git_tags_on_commit: Vec<String> = git_tag_output_string.split_whitespace().map(|s| s.to_owned()).collect();
-    return Ok(git_tags_on_commit);
+    let git_tags_on_commit = get_cli_output_as_string("git", &["tag", "--points-at", commit.as_str()])?;
+    let git_tags_on_commit_list: Vec<String> = git_tags_on_commit.split_whitespace().map(|s| s.to_owned()).collect();
+    return Ok(git_tags_on_commit_list);
 }
 
 pub(crate) fn get_current_commit() -> Result<String, ErrorChain> {
-    let git_show_output = Command::new("git").arg("show").arg("-s").arg("--format=%H").output().on_error("error running command 'git show -s --format=%H'")?;
-    let git_show_output_string = String::from_utf8(git_show_output.stdout).on_error("could not parse output from 'git show -s --format=%H'")?.trim().to_owned();
+    let git_show_output_string = get_cli_output_as_string("git", &["show", "-s", "--format=%H"])?;
     return Ok(git_show_output_string);
 }
 
 pub(crate) fn get_branch_name() -> Result<String, ErrorChain> {
-    let command = "git rev-parse --abbrev-ref --symbolic-full-name HEAD";
-    let branch_name = get_cli_output_as_string("git", &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
+    let branch_name = get_cli_output_as_string("git", &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"])?.trim_end().to_owned();
     return Ok(branch_name);
 }
 
 pub(crate) fn get_remote_name() -> Result<Option<String>, ErrorChain> {
-    let command = "git remote";
-    let remote_name = get_cli_output_as_string("git", &["remote"]).on_error(format!("error using command '{}'", command))?.trim().to_owned();
+    let remote_name = get_cli_output_as_string("git", &["remote"])?.trim().to_owned();
     if remote_name.is_empty() {
         return Ok(None);
     }
@@ -161,13 +154,12 @@ pub(crate) fn get_remote_name() -> Result<Option<String>, ErrorChain> {
 }
 
 pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
-    let branch_name = get_branch_name().on_error("could not determine if repo in detatched head mode")?;
+    let branch_name = get_branch_name()?;
     return Ok(branch_name == String::from("HEAD")); // branches CANNOT be named HEAD, HEAD is only returned from get_branch_mode() when in detatched state
 }
 
 pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
-    let command = "git log --walk-reflogs --grep-reflog \"checkout\" -1 --oneline";
-    let detatch_log = get_cli_output_as_string("git", &["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
+    let detatch_log = get_cli_output_as_string("git", &["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"])?;
     let original_branch_start = detatch_log.find_first(&"checkout: moving from ").on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch_end = detatch_log.find_first_from(&" to ", original_branch_start.end()).on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch = detatch_log[original_branch_start.end()..original_branch_end.start()].to_owned();
@@ -175,8 +167,7 @@ pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
 }
 
 pub(crate) fn get_all_local_branches_in_repo() -> Result<Vec<String>, ErrorChain> {
-    let command = "git branch --list --format=\"%(refname:short)\"";
-    let branches_string = get_cli_output_as_string("git", &["branch", "--list", "--format=\"%(refname:short)\""]).on_error(format!("error using command '{}'", command))?;
+    let branches_string = get_cli_output_as_string("git", &["branch", "--list", "--format=\"%(refname:short)\""])?;
     let branches: Vec<String> = branches_string.split_whitespace().map(|s| s.trim_matches('"').to_owned()).collect();
     return Ok(branches);
 }
