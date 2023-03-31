@@ -1,7 +1,7 @@
 use gmec::types::error_chain::ErrorChain;
 use gmec::types::error_chain::ErrorPropogation;
 
-use crate::utils::*;
+use crate::internal::*;
 
 
 const LOAD_PREV: &str = "prev";

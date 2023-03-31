@@ -11,6 +11,19 @@ pub(crate) enum VersionPart {
     Patch
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32
+}
+
+impl Version {
+    pub fn to_string(&self) -> String {
+        format!("{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
 pub(crate) fn cli_affirmative(string: String) -> bool {
     match string.to_lowercase().trim() {
         "y" | "ye" | "yes" => true,
@@ -36,26 +49,36 @@ impl Iterator for Commiterator {
     }
 }
 
-pub(crate) fn get_cli_output<S, IIS>(program: S, args: IIS) -> Result<Output, ErrorChain>
-where S: AsRef<OsStr> + AsRef<str>,
-IIS: IntoIterator<Item = S>  {
-    let out_result = Command::new(program).args(args).output().on_error("could not execute command")?;
+pub(crate) fn get_cli_output<S>(program: S, args: &[S]) -> Result<Output, ErrorChain>
+where S: AsRef<str> + AsRef<OsStr> {
+    let full_command = collect_full_command(&program, args);
+    let out_result = Command::new(program).args(args).output().on_error(format!("error running command: {}", full_command))?;
     return Ok(out_result);
 }
 
-pub(crate) fn run_cli<S, IIS>(program: S, args: IIS) -> Result<(), ErrorChain>
-where S: AsRef<OsStr> + AsRef<str>,
-IIS: IntoIterator<Item = S>  {
-    let success = Command::new(program).args(args).status().on_error("could not execute command")?.success();
+pub(crate) fn run_cli<S>(program: S, args: &[S]) -> Result<(), ErrorChain>
+where S: AsRef<str> + AsRef<OsStr> {
+    let full_command = collect_full_command(&program, args);
+    let success = Command::new(program).args(args).status().on_error(format!("error running command: {}", full_command))?.success();
     if success {
         return Ok(())
     }
     return Err(ErrorChain::new("command exited with abnormal status"));
 }
 
-pub(crate) fn get_cli_output_as_string<S, IIS>(program: S, args: IIS) -> Result<String, ErrorChain>
-where S: AsRef<OsStr> + AsRef<str>,
-IIS: IntoIterator<Item = S> {
+fn collect_full_command<S>(program: &S, args: &[S]) -> String
+where S: AsRef<str> + AsRef<OsStr> {
+    let mut command_string = String::new();
+        command_string.push_str(program.as_ref());
+        for arg in args.into_iter() {
+            command_string.push(' ');
+            command_string.push_str(arg.as_ref());
+        }
+        command_string
+}
+
+pub(crate) fn get_cli_output_as_string<S>(program: S, args: &[S]) -> Result<String, ErrorChain>
+where S: AsRef<OsStr> + AsRef<str> {
     let cli_output = get_cli_output(program, args).on_error("could not execute command")?;
     let cli_output_string = String::from_utf8(cli_output.stdout).on_error("could not parse to string")?.to_owned();
     return Ok(cli_output_string);
@@ -102,7 +125,7 @@ pub(crate) fn get_all_commits_in_current_branch() -> Result<Vec<String>, ErrorCh
 
 pub(crate) fn get_all_commits_in_branch(branch: &str) -> Result<Vec<String>, ErrorChain> {
     let command = "git log <branch-name> --pretty=format:'%H'";
-    let commits_in_branch = get_cli_output_as_string("git", ["log", branch, "--pretty=format:'%H'"]).on_error(format!("error using command '{}'", command))?;
+    let commits_in_branch = get_cli_output_as_string("git", &["log", branch, "--pretty=format:'%H'"]).on_error(format!("error using command '{}'", command))?;
     let git_log_output = Command::new("git").arg("log").arg("--pretty=format:'%H'").output().on_error("error running command 'git log --pretty=format:'%H''")?;
     let git_log_output_string = String::from_utf8(git_log_output.stdout).on_error("could not parse output from 'git log --pretty=format:'%H'' into utf-8 String")?;
     let git_log_commits: Vec<String> = git_log_output_string.split_whitespace().map(|s| s.trim_matches('\'').to_owned()).collect();
@@ -124,14 +147,17 @@ pub(crate) fn get_current_commit() -> Result<String, ErrorChain> {
 
 pub(crate) fn get_branch_name() -> Result<String, ErrorChain> {
     let command = "git rev-parse --abbrev-ref --symbolic-full-name HEAD";
-    let branch_name = get_cli_output_as_string("git", ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
+    let branch_name = get_cli_output_as_string("git", &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD"]).on_error(format!("error using command '{}'", command))?.trim_end().to_owned();
     return Ok(branch_name);
 }
 
-pub(crate) fn get_remote_name() -> Result<String, ErrorChain> {
+pub(crate) fn get_remote_name() -> Result<Option<String>, ErrorChain> {
     let command = "git remote";
-    let remote_name = get_cli_output_as_string("git", ["remote"]).on_error(format!("error using command '{}'", command))?;
-    return Ok(remote_name.trim_end().to_owned());
+    let remote_name = get_cli_output_as_string("git", &["remote"]).on_error(format!("error using command '{}'", command))?.trim().to_owned();
+    if remote_name.is_empty() {
+        return Ok(None);
+    }
+    return Ok(Some(remote_name));
 }
 
 pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
@@ -141,7 +167,7 @@ pub(crate) fn is_detatched_mode() -> Result<bool, ErrorChain> {
 
 pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
     let command = "git log --walk-reflogs --grep-reflog \"checkout\" -1 --oneline";
-    let detatch_log = get_cli_output_as_string("git", ["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
+    let detatch_log = get_cli_output_as_string("git", &["log", "--walk-reflogs", "--grep-reflog", "checkout", "-1", "--oneline"]).on_error(format!("error using command '{}'", command))?;
     let original_branch_start = detatch_log.find_first(&"checkout: moving from ").on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch_end = detatch_log.find_first_from(&" to ", original_branch_start.end()).on_error("could not locate where HEAD was detatched from branch")?;
     let original_branch = detatch_log[original_branch_start.end()..original_branch_end.start()].to_owned();
@@ -150,22 +176,53 @@ pub(crate) fn last_attatched_head_branch() -> Result<String, ErrorChain> {
 
 pub(crate) fn get_all_local_branches_in_repo() -> Result<Vec<String>, ErrorChain> {
     let command = "git branch --list --format=\"%(refname:short)\"";
-    let branches_string = get_cli_output_as_string("git", ["branch", "--list", "--format=\"%(refname:short)\""]).on_error(format!("error using command '{}'", command))?;
+    let branches_string = get_cli_output_as_string("git", &["branch", "--list", "--format=\"%(refname:short)\""]).on_error(format!("error using command '{}'", command))?;
     let branches: Vec<String> = branches_string.split_whitespace().map(|s| s.trim_matches('"').to_owned()).collect();
     return Ok(branches);
 }
 
 pub(crate) fn git_checkout(identifier: &str) -> Result<(), ErrorChain> {
-    let command = "git checkout <identifier>";
-    get_cli_output("git", ["checkout", identifier]).on_error(format!("error using command '{}'", command))?;
-    return Ok(())
+    return run_cli("git", &["checkout", identifier]);
 }
 
 pub(crate) fn git_branch(branch_name: &str) -> Result<(), ErrorChain> {
-    let command = "git branch <branch-name>";
-    get_cli_output("git", ["branch", branch_name]).on_error(format!("error using command '{}'", command))?;
-    Ok(())
+    return run_cli("git", &["branch", branch_name]);
 }
+
+pub(crate) fn cargo_generate_lockfile() -> Result<(), ErrorChain> {
+    return run_cli("cargo", &["generate-lockfile"]);
+}
+
+pub(crate) fn cargo_publish() -> Result<(), ErrorChain> {
+    return run_cli("cargo", &["publish"]);
+}
+
+pub(crate) fn git_stage_all_changes() -> Result<(), ErrorChain> {
+    return run_cli("git", &["add", "."]);
+}
+
+pub(crate) fn git_commit_with_message(message: &String) -> Result<(), ErrorChain> {
+    return run_cli("git", &["commit", "-m", message.as_str()]);
+}
+
+pub(crate) fn git_create_tag(tag: &String) -> Result<(), ErrorChain> {
+    return run_cli("git", &["tag", tag.as_str()]);
+}
+
+pub(crate) fn git_push(remote: &String, branch: &String) -> Result<(), ErrorChain> {
+    return run_cli("git", &["push", remote.as_str(), branch.as_str(), "--tags"]);
+}
+
+pub(crate) fn git_merge(from_branch: &String, into_branch: &String) -> Result<(), ErrorChain> {
+    git_checkout(&into_branch)?;
+    return run_cli("git", &["merge", from_branch.as_str()]);
+}
+
+pub(crate) fn git_delete_branch(branch: &String) -> Result<(), ErrorChain> {
+    return run_cli("git", &["branch", "--delete", branch.as_str()]);
+}
+
+// pub(crate) git_push_branch()
 
 pub(crate) fn read_stdin_line(output_string: &mut String) -> Result<usize, ErrorChain> {
     io::stdout().flush().on_error("error flushing stdout")?;
